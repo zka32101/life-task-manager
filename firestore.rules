@@ -1,0 +1,158 @@
+rules_version = '2';
+
+// LifeTask Manager - Firestore Security Rules v3.1
+// 設計書: lifetask-design-document-v3.1.md / api-firestore-schema-design.md
+
+function isAuthenticated() {
+  return request.auth != null;
+}
+
+// トライアル中または有料ユーザーかどうか
+function isActiveUser(uid) {
+  let user = get(/databases/$(database)/documents/users/$(uid)/profile);
+  let isPaid = user.data.isPaid == true;
+  let trialStart = user.data.trialStartAt;
+  let isTrialActive = (request.time - trialStart) < duration.value(30, 'd');
+  return isPaid || isTrialActive;
+}
+
+function isCurrentUser(uid) {
+  return isAuthenticated() && request.auth.uid == uid;
+}
+
+function isGroupMember(groupId) {
+  return isAuthenticated() &&
+    request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/profile).data.memberUids;
+}
+
+function isGroupOwner(groupId) {
+  return isAuthenticated() &&
+    get(/databases/$(database)/documents/groups/$(groupId)/profile).data.ownerUid == request.auth.uid;
+}
+
+function isActiveGroupMember(groupId) {
+  return isGroupMember(groupId) && isActiveUser(request.auth.uid);
+}
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ──────────────────────────────────────────────
+    // Users
+    // ──────────────────────────────────────────────
+    match /users/{uid} {
+      allow read, write: if isCurrentUser(uid);
+
+      // プロフィール: 本人のみ読み書き
+      match /profile {
+        allow read: if isCurrentUser(uid);
+        allow write: if isCurrentUser(uid);
+      }
+
+      // 設定: 本人のみ読み書き
+      match /preferences {
+        allow read, write: if isCurrentUser(uid);
+      }
+
+      // 個人タスク: アクティブユーザーのみ書き込み可
+      match /tasks/{taskId} {
+        allow read: if isCurrentUser(uid);
+        allow create: if isCurrentUser(uid) && isActiveUser(uid);
+        allow update, delete: if isCurrentUser(uid) && isActiveUser(uid);
+      }
+
+      // タスク完了記録: 本人のみ
+      match /task_records/{recordId} {
+        allow read: if isCurrentUser(uid);
+        allow create: if isCurrentUser(uid);
+        allow delete: if isCurrentUser(uid);
+      }
+
+      // 対象外設定: 本人のみ
+      match /excluded_items/{excludeId} {
+        allow read, write: if isCurrentUser(uid);
+      }
+    }
+
+    // ──────────────────────────────────────────────
+    // Groups
+    // ──────────────────────────────────────────────
+    match /groups/{groupId} {
+
+      // グループプロフィール
+      match /profile {
+        allow read: if isGroupMember(groupId);
+        allow create: if isAuthenticated(); // 新規グループ作成
+        allow update: if isGroupOwner(groupId);
+        allow delete: if isGroupOwner(groupId);
+      }
+
+      // メンバー一覧
+      match /members/{memberUid} {
+        allow read: if isGroupMember(groupId);
+        allow create: if isAuthenticated(); // 招待受け入れ
+        allow delete: if isGroupOwner(groupId) ||
+                        (isAuthenticated() && request.auth.uid == memberUid); // 自分で退出
+      }
+
+      // 招待
+      match /invitations/{invitationId} {
+        allow read: if isAuthenticated();  // 招待リンクから参照
+        allow create: if isGroupOwner(groupId) && isActiveUser(request.auth.uid);
+        allow update: if isAuthenticated(); // accept/decline
+      }
+
+      // グループタスク（v3.1: read/write ともに isActiveUser 必須）
+      match /tasks/{taskId} {
+        allow read: if isActiveGroupMember(groupId);
+        allow create, update: if isActiveGroupMember(groupId);
+        allow delete: if isActiveGroupMember(groupId) &&
+                        (isGroupOwner(groupId) ||
+                         resource.data.createdByUid == request.auth.uid);
+      }
+
+      // グループ完了記録（v3.1: read/create に isActiveUser 必須）
+      match /task_records/{recordId} {
+        allow read: if isGroupMember(groupId) && isActiveUser(request.auth.uid);
+        allow create: if isActiveGroupMember(groupId);
+        allow update, delete: if isGroupOwner(groupId) && isActiveUser(request.auth.uid);
+      }
+
+      // カテゴリ（階層管理）
+      match /categories/{categoryId} {
+        allow read: if isGroupMember(groupId);
+        allow create, update, delete: if isGroupOwner(groupId);
+      }
+    }
+
+    // ──────────────────────────────────────────────
+    // Locale Presets (読み取り専用)
+    // ──────────────────────────────────────────────
+    match /locale_presets/{locale} {
+      allow read: if isAuthenticated();
+
+      match /profile {
+        allow read: if isAuthenticated();
+      }
+
+      match /default_categories/{categoryId} {
+        allow read: if isAuthenticated();
+      }
+
+      match /recommended_tasks/{taskId} {
+        allow read: if isAuthenticated();
+      }
+
+      match /fiscal_year_info {
+        allow read: if isAuthenticated();
+      }
+    }
+
+    // ──────────────────────────────────────────────
+    // App Config (読み取り専用)
+    // ──────────────────────────────────────────────
+    match /app_config/{document=**} {
+      allow read: if isAuthenticated();
+    }
+  }
+}

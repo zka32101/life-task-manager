@@ -1,0 +1,81 @@
+name: life_task_manager
+description: "LifeTask Manager - 人生の大事なタスクを管理するアプリ"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # 状態管理
+  flutter_riverpod: ^2.6.1
+
+  # Firebase
+  firebase_core: ^3.13.0
+  firebase_auth: ^5.5.2
+  cloud_firestore: ^5.6.5
+  firebase_messaging: ^15.2.5
+
+  # Google Sign-In
+  google_sign_in: ^6.2.2
+
+  # ローカル通知
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+
+  # 課金（RevenueCat）
+  purchases_flutter: ^10.2.2
+
+  # 日付操作
+  intl: ^0.20.2
+
+  # ローカル保存
+  shared_preferences: ^2.5.3
+
+  # HTTP通信
+  dio: ^5.8.0+1
+
+  # 環境変数
+  flutter_dotenv: ^5.2.1
+
+  # UI
+  gap: ^3.0.1
+  cached_network_image: ^3.4.1
+
+  # ルーティング
+  go_router: ^14.8.1
+
+  # URL ランチャー
+  url_launcher: ^6.3.1
+
+  # JSON シリアライズ
+  json_annotation: ^4.12.0
+  freezed_annotation: ^3.0.0
+
+  # エラートラッキング
+  sentry_flutter: ^8.12.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.15.0
+  json_serializable: ^6.14.0
+  freezed: ^3.2.5
+
+flutter:
+  uses-material-design: true
+  generate: true
+
+  assets:
+    - assets/images/
+    - assets/lottie/
+    - .env
