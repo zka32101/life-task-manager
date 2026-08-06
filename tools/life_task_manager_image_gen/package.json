@@ -1,0 +1,15 @@
+{
+  "name": "life-task-manager-image-gen",
+  "version": "1.0.0",
+  "description": "LifeTask Manager - Leonardo.ai 画像自動生成ツール",
+  "main": "generate_leonardo.js",
+  "scripts": {
+    "init": "node prompt_builder.js",
+    "sample": "node generate_leonardo.js --sample",
+    "generate": "node generate_leonardo.js --all",
+    "regenerate": "node generate_leonardo.js --all --force"
+  },
+  "keywords": ["leonardo", "ai", "image-generation"],
+  "author": "",
+  "license": "ISC"
+}

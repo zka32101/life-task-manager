@@ -3,6 +3,8 @@ import 'package:life_task_manager/features/auth/presentation/providers/auth_prov
 import 'package:life_task_manager/features/tasks/data/datasources/task_firestore_datasource.dart';
 import 'package:life_task_manager/features/tasks/data/models/task_model.dart';
 import 'package:life_task_manager/features/tasks/domain/entities/task_entity.dart';
+import 'package:life_task_manager/core/services/health_score_service.dart';
+import 'package:life_task_manager/features/notifications/data/local_notification_scheduler.dart';
 
 // ---------------------------------------------------------------------------
 // DataSource Provider
@@ -71,6 +73,21 @@ final thisWeekTasksProvider = Provider<AsyncValue<List<TaskEntity>>>((ref) {
   });
 });
 
+/// 完了履歴（lastDoneAt がある全タスク、アーカイブ含む）
+final completedTasksHistoryProvider = StreamProvider<List<TaskEntity>>((ref) {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return Stream.value([]);
+
+  return ref
+      .watch(taskDatasourceProvider)
+      .watchUserTasks(user.uid, includeArchived: true)
+      .map((models) => models
+          .map((m) => m.toEntity())
+          .where((t) => t.lastDoneAt != null)
+          .toList()
+        ..sort((a, b) => b.lastDoneAt!.compareTo(a.lastDoneAt!)));
+});
+
 /// 期限切れタスク数（バッジ用）
 final overdueTaskCountProvider = Provider<int>((ref) {
   final tasksAsync = ref.watch(userTasksProvider);
@@ -130,6 +147,9 @@ class TaskNotifier extends StateNotifier<AsyncValue<void>> {
     if (currentState is AsyncError) {
       throw currentState.error;
     }
+    // 通知スケジュール（taskId が確定してから）
+    final taskWithId = task.copyWith(taskId: taskId);
+    LocalNotificationScheduler.scheduleForTask(taskWithId).ignore();
     return taskId;
   }
 
@@ -139,6 +159,35 @@ class TaskNotifier extends StateNotifier<AsyncValue<void>> {
     state = await AsyncValue.guard(() async {
       await _datasource.updateTask(_requireUid, taskId, data);
     });
+    // nextDueAt や reminderDaysBefore が変わった可能性があるので再スケジュール
+    if (data.containsKey('nextDueAt') || data.containsKey('reminderDaysBefore')) {
+      _rescheduleFromData(taskId, data);
+    }
+  }
+
+  void _rescheduleFromData(String taskId, Map<String, dynamic> data) {
+    final dueRaw = data['nextDueAt'];
+    final DateTime? dueAt = dueRaw is DateTime
+        ? dueRaw
+        : (dueRaw != null ? DateTime.tryParse(dueRaw.toString()) : null);
+    if (dueAt == null) return;
+    final days = (data['reminderDaysBefore'] as int?) ?? 0;
+    final title = (data['title'] as String?) ?? '';
+    final cost = (data['cost'] as double?);
+    final dummy = TaskEntity(
+      taskId: taskId,
+      title: title,
+      categoryId: '',
+      categoryPath: '',
+      nextDueAt: dueAt,
+      reminderDaysBefore: days,
+      cost: cost,
+      createdByUid: '',
+      updatedByUid: '',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    LocalNotificationScheduler.scheduleForTask(dummy).ignore();
   }
 
   /// タスクを削除
@@ -147,6 +196,7 @@ class TaskNotifier extends StateNotifier<AsyncValue<void>> {
     state = await AsyncValue.guard(() async {
       await _datasource.deleteTask(_requireUid, taskId);
     });
+    LocalNotificationScheduler.cancelForTask(taskId).ignore();
   }
 
   /// タスクを完了済みにする
@@ -159,6 +209,8 @@ class TaskNotifier extends StateNotifier<AsyncValue<void>> {
         completedAt ?? DateTime.now(),
       );
     });
+    // 完了したタスクの通知はキャンセル
+    LocalNotificationScheduler.cancelForTask(taskId).ignore();
   }
 
   /// タスクを延期する
@@ -171,6 +223,8 @@ class TaskNotifier extends StateNotifier<AsyncValue<void>> {
     state = await AsyncValue.guard(() async {
       await _datasource.deferTask(_requireUid, taskId, newDueAt, reason);
     });
+    // 延期後の新しい日時で再スケジュール
+    _rescheduleFromData(taskId, {'nextDueAt': newDueAt});
   }
 
   /// タスクをアーカイブする（isArchived = true）
@@ -179,6 +233,7 @@ class TaskNotifier extends StateNotifier<AsyncValue<void>> {
     state = await AsyncValue.guard(() async {
       await _datasource.updateTask(_requireUid, taskId, {'isArchived': true});
     });
+    LocalNotificationScheduler.cancelForTask(taskId).ignore();
   }
 }
 
@@ -186,4 +241,45 @@ final taskNotifierProvider =
     StateNotifierProvider<TaskNotifier, AsyncValue<void>>((ref) {
   final user = ref.watch(currentUserProvider);
   return TaskNotifier(ref.watch(taskDatasourceProvider), user?.uid);
+});
+
+// ---------------------------------------------------------------------------
+// 今年回避した損失額（完了済みタスクのコスト合計）
+final preventedLossProvider = Provider<double>((ref) {
+  final tasksAsync = ref.watch(completedTasksHistoryProvider);
+  return tasksAsync.when(
+    data: (tasks) {
+      final thisYear = DateTime.now().year;
+      return tasks
+          .where((t) =>
+              t.lastDoneAt != null &&
+              t.lastDoneAt!.year == thisYear &&
+              t.cost != null)
+          .fold(0.0, (sum, t) => sum + t.cost!);
+    },
+    loading: () => 0,
+    error: (_, __) => 0,
+  );
+});
+
+// 健康スコア自動更新
+// ---------------------------------------------------------------------------
+
+/// タスク一覧が更新されるたびに健康スコアを再計算・保存
+final healthScoreAutoUpdateProvider = Provider<void>((ref) {
+  final tasksAsync = ref.watch(userTasksProvider);
+  tasksAsync.whenData((tasks) async {
+    final scores = HealthScoreService.calculate(tasks);
+    await HealthScoreService.saveScores(scores);
+  });
+});
+
+/// 現在の健康スコア（ローカル計算、即時反映）
+final localHealthScoresProvider = Provider<Map<String, int>>((ref) {
+  final tasksAsync = ref.watch(userTasksProvider);
+  return tasksAsync.when(
+    data: (tasks) => HealthScoreService.calculate(tasks),
+    loading: () => {'house': 100, 'vehicle': 100, 'health': 100, 'finance': 100},
+    error: (_, __) => {'house': 100, 'vehicle': 100, 'health': 100, 'finance': 100},
+  );
 });

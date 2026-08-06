@@ -58,6 +58,9 @@ class _TaskAddEditScreenState extends ConsumerState<TaskAddEditScreen> {
   final _costController = TextEditingController();
   String _costCurrency = 'JPY';
 
+  // 対象外設定の折りたたみ状態
+  bool _advancedExpanded = false;
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -230,15 +233,17 @@ class _TaskAddEditScreenState extends ConsumerState<TaskAddEditScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // タイトル
+            // タイトル（自動フォーカス）
             TextFormField(
               controller: _titleController,
+              autofocus: !widget.isEditing,
               decoration: const InputDecoration(
                 labelText: 'タイトル',
                 hintText: '例: 確定申告',
                 counterText: '',
               ),
               maxLength: AppConstants.titleMaxLength,
+              textInputAction: TextInputAction.next,
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'タイトルを入力してください';
                 return null;
@@ -268,11 +273,15 @@ class _TaskAddEditScreenState extends ConsumerState<TaskAddEditScreen> {
             ),
             const Gap(20),
 
-            // 次回予定日
+            // 次回予定日 + クイック選択
             _DateField(
               label: '次回予定日',
               date: _nextDueAt,
               onChanged: (d) => setState(() => _nextDueAt = d),
+            ),
+            const Gap(8),
+            _QuickDateChips(
+              onSelect: (d) => setState(() => _nextDueAt = d),
             ),
             const Gap(16),
 
@@ -286,11 +295,15 @@ class _TaskAddEditScreenState extends ConsumerState<TaskAddEditScreen> {
             // リマインダー
             DropdownButtonFormField<int>(
               value: _reminderDaysBefore,
-              decoration: const InputDecoration(labelText: 'リマインダー'),
+              decoration: InputDecoration(
+                labelText: 'リマインダー',
+                helperText: '期限の何日前に通知を受け取るか',
+                prefixIcon: const Icon(Icons.notifications_outlined, size: 20),
+              ),
               items: AppConstants.reminderOptions
                   .map((d) => DropdownMenuItem(
                         value: d,
-                        child: Text(d == 0 ? '当日' : '$d日前'),
+                        child: Text(d == 0 ? '当日（朝9時）' : '$d日前（朝9時）'),
                       ))
                   .toList(),
               onChanged: (v) {
@@ -318,7 +331,11 @@ class _TaskAddEditScreenState extends ConsumerState<TaskAddEditScreen> {
                   flex: 2,
                   child: TextFormField(
                     controller: _costController,
-                    decoration: const InputDecoration(labelText: '費用（任意）'),
+                    decoration: InputDecoration(
+                      labelText: '費用（任意）',
+                      helperText: '放置した際の損失リスク額',
+                      prefixText: _costCurrency == 'JPY' ? '¥ ' : null,
+                    ),
                     keyboardType: TextInputType.number,
                   ),
                 ),
@@ -342,17 +359,35 @@ class _TaskAddEditScreenState extends ConsumerState<TaskAddEditScreen> {
             ),
             const Gap(20),
 
-            // 対象外設定
-            _ExclusionSection(
-              isExcluded: _isExcluded,
-              isTemporary: _isTemporaryExclusion,
-              validUntil: _exclusionValidUntil,
-              reasonController: _exclusionReasonController,
-              onExcludedChanged: (v) => setState(() => _isExcluded = v ?? false),
-              onTemporaryChanged: (v) =>
-                  setState(() => _isTemporaryExclusion = v ?? false),
-              onValidUntilChanged: (d) =>
-                  setState(() => _exclusionValidUntil = d),
+            // 詳細設定（折りたたみ）
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                initiallyExpanded: _advancedExpanded || _isExcluded,
+                onExpansionChanged: (v) => setState(() => _advancedExpanded = v),
+                leading: Icon(Icons.tune_rounded,
+                    color: Colors.grey.shade500, size: 20),
+                title: Text(
+                  '詳細設定',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                ),
+                children: [
+                  _ExclusionSection(
+                    isExcluded: _isExcluded,
+                    isTemporary: _isTemporaryExclusion,
+                    validUntil: _exclusionValidUntil,
+                    reasonController: _exclusionReasonController,
+                    onExcludedChanged: (v) =>
+                        setState(() => _isExcluded = v ?? false),
+                    onTemporaryChanged: (v) =>
+                        setState(() => _isTemporaryExclusion = v ?? false),
+                    onValidUntilChanged: (d) =>
+                        setState(() => _exclusionValidUntil = d),
+                  ),
+                ],
+              ),
             ),
             const Gap(24),
 
@@ -369,6 +404,44 @@ class _TaskAddEditScreenState extends ConsumerState<TaskAddEditScreen> {
             const Gap(32),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// クイック期限選択チップ
+// ─────────────────────────────────────────────────────────
+class _QuickDateChips extends StatelessWidget {
+  final ValueChanged<DateTime> onSelect;
+
+  const _QuickDateChips({required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final options = [
+      ('来月', DateTime(now.year, now.month + 1, now.day)),
+      ('3ヶ月後', DateTime(now.year, now.month + 3, now.day)),
+      ('半年後', DateTime(now.year, now.month + 6, now.day)),
+      ('1年後', DateTime(now.year + 1, now.month, now.day)),
+      ('2年後', DateTime(now.year + 2, now.month, now.day)),
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: options.map((opt) {
+          return Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: ActionChip(
+              label: Text(opt.$1, style: const TextStyle(fontSize: 12)),
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              visualDensity: VisualDensity.compact,
+              onPressed: () => onSelect(opt.$2),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -415,7 +488,11 @@ class _CategorySelector extends StatelessWidget {
         // 第1階層
         _CategoryLevel(
           label: '大カテゴリ',
-          items: level0Categories.map((c) => (c.$1, '${c.$2} ${c.$3}')).toList(),
+          items: level0Categories.map((c) {
+            // 大カテゴリには常に絵文字を付ける（アイコン文字が既にある場合は使用）
+            final emoji = c.$2.isNotEmpty ? c.$2 : _categoryEmoji(c.$1);
+            return (c.$1, '$emoji ${c.$3}');
+          }).toList(),
           selectedId: selectedLevel0,
           onChanged: onLevel0Changed,
         ),
@@ -466,6 +543,16 @@ class _CategorySelector extends StatelessWidget {
         ],
       ],
     );
+  }
+}
+
+String _categoryEmoji(String categoryId) {
+  switch (categoryId.toLowerCase()) {
+    case 'house': return '🏠';
+    case 'vehicle': return '🚗';
+    case 'health': return '🏥';
+    case 'finance': return '💴';
+    default: return '📋';
   }
 }
 

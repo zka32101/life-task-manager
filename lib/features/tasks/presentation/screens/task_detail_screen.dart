@@ -8,6 +8,8 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../domain/entities/task_entity.dart';
 import '../widgets/defer_bottom_sheet.dart';
+import '../widgets/ai_advisor_sheet.dart';
+import '../widgets/complete_task_sheet.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 /// タスク詳細画面
@@ -122,6 +124,19 @@ class _TaskDetailView extends ConsumerWidget {
             onPressed: () => context.pushNamed(
               'task-edit',
               pathParameters: {'id': task.taskId},
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.support_agent_rounded),
+            tooltip: 'AIに相談',
+            onPressed: () => showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              builder: (_) => AiAdvisorSheet(task: task),
             ),
           ),
           PopupMenuButton<_TaskMenuAction>(
@@ -728,7 +743,28 @@ class _BottomButtons extends ConsumerWidget {
         children: [
           Expanded(
             child: FilledButton.icon(
-              onPressed: () => _showCompleteDialog(context),
+              onPressed: () => showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                useSafeArea: true,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                builder: (_) => CompleteTaskSheet(
+                  task: task,
+                  uid: uid,
+                  groupId: groupId,
+                  locale: locale,
+                  onCompleted: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('完了しました！'),
+                        backgroundColor: AppTheme.accentColor,
+                      ),
+                    );
+                  },
+                ),
+              ),
               icon: const Icon(Icons.check_circle_outline),
               label: const Text('完了にする'),
               style: FilledButton.styleFrom(
@@ -751,142 +787,6 @@ class _BottomButtons extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  void _showCompleteDialog(BuildContext context) {
-    final nextDue = AppDateUtils.calculateNextDueDate(
-      currentDueAt: task.nextDueAt,
-      recurrenceType: task.recurrenceType,
-      recurrenceValue: task.recurrenceValue,
-      recurrenceUnit: task.recurrenceUnit,
-    );
-    final nextDueLabel = AppDateUtils.formatDate(nextDue, locale);
-    final hasRecurrence = task.recurrenceType != 'none';
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('タスクを完了にしますか？'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (hasRecurrence) ...[
-              Text(
-                '次回予定日:',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              const Gap(4),
-              Text(
-                nextDueLabel,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-            ] else
-              const Text('このタスクを完了済みにします。'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await _completeTask(context, nextDue, hasRecurrence);
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.accentColor,
-            ),
-            child: const Text('完了にする'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _completeTask(
-    BuildContext context,
-    DateTime nextDue,
-    bool hasRecurrence,
-  ) async {
-    try {
-      final collection = groupId != null
-          ? FirebaseFirestore.instance
-              .collection('groups')
-              .doc(groupId)
-              .collection('tasks')
-          : FirebaseFirestore.instance
-              .collection('users')
-              .doc(uid)
-              .collection('tasks');
-
-      final now = DateTime.now();
-      final updateData = <String, dynamic>{
-        'lastDoneAt': Timestamp.fromDate(now),
-        'lastDoneByUid': uid,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedByUid': uid,
-      };
-
-      if (hasRecurrence) {
-        updateData['nextDueAt'] = Timestamp.fromDate(nextDue);
-        updateData['deferCount'] = 0;
-        updateData['deferredAt'] = null;
-        updateData['deferredByUid'] = null;
-      } else {
-        updateData['isArchived'] = true;
-      }
-
-      await collection.doc(task.taskId).update(updateData);
-
-      // Record completion in task_records
-      final recordsCollection = groupId != null
-          ? FirebaseFirestore.instance
-              .collection('groups')
-              .doc(groupId)
-              .collection('task_records')
-          : FirebaseFirestore.instance
-              .collection('users')
-              .doc(uid)
-              .collection('task_records');
-
-      await recordsCollection.add({
-        'taskId': task.taskId,
-        'doneAt': Timestamp.fromDate(now),
-        'doneByUid': uid,
-        'dueDateAt': Timestamp.fromDate(task.nextDueAt),
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('完了しました！'),
-            backgroundColor: AppTheme.accentColor,
-          ),
-        );
-        if (!hasRecurrence) {
-          context.pop();
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('エラーが発生しました: $e'),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
-    }
   }
 
   void _showDeferSheet(BuildContext context) {

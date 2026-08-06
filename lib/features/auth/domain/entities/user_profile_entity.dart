@@ -20,6 +20,7 @@ sealed class UserProfileEntity with _$UserProfileEntity {
     String? invitedByGroupId,
     String? iapPlatform,
     String? iapTransactionId,
+    @Default(0.0) double yearlyBudgetTotal,
     required DateTime lastActiveAt,
     required DateTime createdAt,
     required DateTime updatedAt,

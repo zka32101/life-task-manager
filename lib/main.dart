@@ -20,10 +20,15 @@ void main() async {
   // 環境変数読み込み
   await dotenv.load(fileName: '.env');
 
-  // Firebase 初期化（明示的にオプションを渡す）
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Firebase 初期化（duplicate-app を安全にハンドル）
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') rethrow;
+    // 既に初期化済み（Firebase Messaging バックグラウンド等）→ 続行
+  }
 
   // RevenueCat 初期化（プラットフォーム別 API キー）
   try {

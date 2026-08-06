@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'features/notifications/data/notification_service.dart';
+import 'features/notifications/presentation/screens/notification_center_screen.dart';
 import 'core/presentation/screens/splash_screen.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/onboarding/presentation/screens/onboarding_screen.dart';
@@ -16,21 +18,31 @@ import 'features/settings/presentation/screens/settings_screen.dart';
 import 'features/settings/presentation/screens/exclusion_items_screen.dart';
 import 'features/settings/presentation/screens/language_screen.dart';
 import 'features/paywall/presentation/screens/paywall_screen.dart';
+import 'features/history/presentation/screens/history_screen.dart';
+import 'features/scan/presentation/screens/document_scan_screen.dart';
+import 'features/family/presentation/screens/family_monitor_screen.dart';
+import 'features/family/presentation/screens/family_tasks_screen.dart';
+import 'features/help/presentation/screens/app_guide_screen.dart';
+
+/// 通知タップ時のナビゲーションに使うキー
+final navigatorKey = GlobalKey<NavigatorState>();
 
 /// アプリルーター（GoRouter）
 ///
 /// ルート一覧:
-///   /login       - ログイン画面
-///   /onboarding  - オンボーディング（初回）
-///   /home        - ホーム（タスク一覧）
-///   /tasks/new   - タスク追加
-///   /tasks/:id   - タスク詳細
+///   /login         - ログイン画面
+///   /onboarding    - オンボーディング（初回）
+///   /home          - ホーム（タスク一覧）
+///   /tasks/new     - タスク追加
+///   /tasks/:id     - タスク詳細
 ///   /tasks/:id/edit - タスク編集
-///   /groups      - グループ一覧
-///   /settings    - 設定
-///   /paywall     - ペイウォール
+///   /groups        - グループ一覧
+///   /notifications - 通知センター
+///   /settings      - 設定
+///   /paywall       - ペイウォール
 final routerProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
+  final router = GoRouter(
+    navigatorKey: navigatorKey,
     initialLocation: '/',
     redirect: (context, state) {
       // TODO: auth state を確認してリダイレクト
@@ -136,6 +148,38 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
+        path: '/history',
+        name: 'history',
+        builder: (context, state) => const HistoryScreen(),
+      ),
+      GoRoute(
+        path: '/scan',
+        name: 'scan',
+        builder: (context, state) => const DocumentScanScreen(),
+      ),
+      GoRoute(
+        path: '/family',
+        name: 'family',
+        builder: (context, state) => const FamilyMonitorScreen(),
+      ),
+      GoRoute(
+        path: '/family/tasks',
+        name: 'family-tasks',
+        builder: (context, state) {
+          final uid = state.uri.queryParameters['uid'] ?? '';
+          final name = state.uri.queryParameters['name'] ?? '家族';
+          return FamilyTasksScreen(targetUid: uid, name: name);
+        },
+      ),
+      GoRoute(
+        path: '/guide',
+        name: 'guide',
+        builder: (context, state) {
+          final isFirst = state.uri.queryParameters['first'] == 'true';
+          return AppGuideScreen(isFirstLaunch: isFirst);
+        },
+      ),
+      GoRoute(
         path: '/paywall',
         name: 'paywall',
         builder: (context, state) {
@@ -148,9 +192,29 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
+      GoRoute(
+        path: '/notifications',
+        name: 'notifications',
+        builder: (context, state) => const NotificationCenterScreen(),
+      ),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(child: Text('Page not found: ${state.error}')),
     ),
   );
+
+  // 通知タップ → GoRouter でナビゲーション
+  NotificationService.onNotificationTap = (screen, taskId, groupId) {
+    if (taskId != null && taskId.isNotEmpty) {
+      router.goNamed('task-detail',
+          pathParameters: {'id': taskId},
+          queryParameters: groupId != null ? {'groupId': groupId} : {});
+    } else if (screen == 'notifications') {
+      router.goNamed('notifications');
+    } else {
+      router.goNamed('home');
+    }
+  };
+
+  return router;
 });
