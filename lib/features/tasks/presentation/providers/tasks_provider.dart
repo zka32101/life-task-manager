@@ -45,6 +45,22 @@ final groupTasksProvider =
       .map((models) => models.map((m) => m.toEntity()).toList());
 });
 
+/// 個別タスク取得（userTasksProvider/groupTasksProvider から検索）
+/// args: (taskId, groupId?) - groupId=null の場合は個人タスク
+final taskByIdProvider =
+    Provider.family<AsyncValue<TaskEntity?>, ({String taskId, String? groupId})>(
+        (ref, args) {
+  if (args.groupId != null) {
+    final tasksAsync = ref.watch(groupTasksProvider(args.groupId!));
+    return tasksAsync.whenData((tasks) => tasks
+        .firstWhere((t) => t.taskId == args.taskId, orElse: () => throw Exception('Task not found')));
+  } else {
+    final tasksAsync = ref.watch(userTasksProvider);
+    return tasksAsync.whenData((tasks) => tasks
+        .firstWhere((t) => t.taskId == args.taskId, orElse: () => throw Exception('Task not found')));
+  }
+});
+
 // ---------------------------------------------------------------------------
 // フィルタ済みタスク
 // ---------------------------------------------------------------------------

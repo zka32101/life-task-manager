@@ -1,18 +1,17 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../domain/entities/task_entity.dart';
+import '../../presentation/providers/tasks_provider.dart';
 import '../widgets/defer_bottom_sheet.dart';
 import '../widgets/ai_advisor_sheet.dart';
 import '../widgets/complete_task_sheet.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
-/// タスク詳細画面
+/// タスク詳細画面 — Riverpod ベース
 class TaskDetailScreen extends ConsumerWidget {
   final String taskId;
   final String? groupId;
@@ -25,80 +24,78 @@ class TaskDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    // taskByIdProvider でタスクを取得
+    final taskAsync =
+        ref.watch(taskByIdProvider((taskId: taskId, groupId: groupId)));
 
-    if (uid == null) {
-      return const Scaffold(
-        body: Center(child: Text('ログインが必要です')),
-      );
-    }
-
-    final collection = groupId != null
-        ? FirebaseFirestore.instance
-            .collection('groups')
-            .doc(groupId)
-            .collection('tasks')
-        : FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('tasks');
-
-    return StreamBuilder<DocumentSnapshot>(
-      stream: collection.doc(taskId).snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: Center(
-              child: Text('エラーが発生しました: ${snapshot.error}'),
+    return taskAsync.when(
+      data: (task) => task != null
+          ? _TaskDetailView(task: task, taskId: taskId, groupId: groupId)
+          : _ErrorScreen(
+              title: 'タスクが見つかりません',
+              message: 'このタスクは削除されているか、アクセス権限がありません。',
             ),
-          );
-        }
-
-        if (!snapshot.hasData || !snapshot.data!.exists) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('タスク詳細')),
-            body: const Center(child: Text('タスクが見つかりません')),
-          );
-        }
-
-        final data = snapshot.data!.data() as Map<String, dynamic>;
-        // Convert Firestore Timestamps to DateTime strings for fromJson
-        final jsonData = _convertTimestamps(data);
-        final task = TaskEntity.fromJson(jsonData);
-
-        return _TaskDetailView(task: task, uid: uid, groupId: groupId);
-      },
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, stackTrace) => _ErrorScreen(
+        title: 'エラーが発生しました',
+        message: error.toString(),
+      ),
     );
   }
+}
 
-  Map<String, dynamic> _convertTimestamps(Map<String, dynamic> data) {
-    final result = <String, dynamic>{};
-    for (final entry in data.entries) {
-      if (entry.value is Timestamp) {
-        result[entry.key] = (entry.value as Timestamp).toDate().toIso8601String();
-      } else {
-        result[entry.key] = entry.value;
-      }
-    }
-    return result;
+/// エラー表示画面
+class _ErrorScreen extends StatelessWidget {
+  final String title;
+  final String message;
+
+  const _ErrorScreen({required this.title, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('タスク詳細')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: AppTheme.errorColor),
+            const Gap(16),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const Gap(8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              ),
+            ),
+            const Gap(24),
+            FilledButton(
+              onPressed: () => context.pop(),
+              child: const Text('戻る'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
 class _TaskDetailView extends ConsumerWidget {
   final TaskEntity task;
-  final String uid;
+  final String taskId;
   final String? groupId;
 
   const _TaskDetailView({
     required this.task,
-    required this.uid,
+    required this.taskId,
     required this.groupId,
   });
 
@@ -106,9 +103,8 @@ class _TaskDetailView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isOverdue = AppDateUtils.isOverdue(task.nextDueAt);
     final profile = ref.watch(userProfileProvider).valueOrNull;
-    final locale = profile != null
-        ? '${profile.language}-${profile.country}'
-        : 'ja-JP';
+    final locale =
+        profile != null ? '${profile.language}-${profile.country}' : 'ja-JP';
 
     return Scaffold(
       appBar: AppBar(
@@ -141,7 +137,7 @@ class _TaskDetailView extends ConsumerWidget {
           ),
           PopupMenuButton<_TaskMenuAction>(
             icon: const Icon(Icons.more_vert),
-            onSelected: (action) => _handleMenuAction(context, action),
+            onSelected: (action) => _handleMenuAction(context, ref, action),
             itemBuilder: (_) => [
               const PopupMenuItem(
                 value: _TaskMenuAction.archive,
@@ -157,9 +153,11 @@ class _TaskDetailView extends ConsumerWidget {
                 value: _TaskMenuAction.delete,
                 child: Row(
                   children: [
-                    Icon(Icons.delete_outline, size: 20, color: AppTheme.errorColor),
+                    Icon(Icons.delete_outline,
+                        size: 20, color: AppTheme.errorColor),
                     Gap(12),
-                    Text('削除', style: TextStyle(color: AppTheme.errorColor)),
+                    Text('削除',
+                        style: TextStyle(color: AppTheme.errorColor)),
                   ],
                 ),
               ),
@@ -260,23 +258,29 @@ class _TaskDetailView extends ConsumerWidget {
             ),
 
             // Bottom buttons
-            _BottomButtons(task: task, uid: uid, groupId: groupId, locale: locale),
+            _BottomButtons(
+              task: task,
+              taskId: taskId,
+              groupId: groupId,
+              locale: locale,
+            ),
           ],
         ),
       ),
     );
   }
 
-  void _handleMenuAction(BuildContext context, _TaskMenuAction action) {
+  void _handleMenuAction(BuildContext context, WidgetRef ref,
+      _TaskMenuAction action) {
     switch (action) {
       case _TaskMenuAction.archive:
-        _confirmArchive(context);
+        _confirmArchive(context, ref);
       case _TaskMenuAction.delete:
-        _confirmDelete(context);
+        _confirmDelete(context, ref);
     }
   }
 
-  void _confirmArchive(BuildContext context) {
+  void _confirmArchive(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -290,7 +294,7 @@ class _TaskDetailView extends ConsumerWidget {
           FilledButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              await _archiveTask(context);
+              await _archiveTask(context, ref);
             },
             child: const Text('アーカイブ'),
           ),
@@ -299,7 +303,7 @@ class _TaskDetailView extends ConsumerWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context) {
+  void _confirmDelete(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -313,7 +317,7 @@ class _TaskDetailView extends ConsumerWidget {
           FilledButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              await _deleteTask(context);
+              await _deleteTask(context, ref);
             },
             style: FilledButton.styleFrom(
               backgroundColor: AppTheme.errorColor,
@@ -325,23 +329,12 @@ class _TaskDetailView extends ConsumerWidget {
     );
   }
 
-  Future<void> _archiveTask(BuildContext context) async {
+  Future<void> _archiveTask(BuildContext context, WidgetRef ref) async {
     try {
-      final collection = groupId != null
-          ? FirebaseFirestore.instance
-              .collection('groups')
-              .doc(groupId)
-              .collection('tasks')
-          : FirebaseFirestore.instance
-              .collection('users')
-              .doc(uid)
-              .collection('tasks');
-
-      await collection.doc(task.taskId).update({
-        'isArchived': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedByUid': uid,
-      });
+      await ref.read(taskNotifierProvider.notifier).updateTask(
+            taskId,
+            {'isArchived': true},
+          );
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -361,19 +354,9 @@ class _TaskDetailView extends ConsumerWidget {
     }
   }
 
-  Future<void> _deleteTask(BuildContext context) async {
+  Future<void> _deleteTask(BuildContext context, WidgetRef ref) async {
     try {
-      final collection = groupId != null
-          ? FirebaseFirestore.instance
-              .collection('groups')
-              .doc(groupId)
-              .collection('tasks')
-          : FirebaseFirestore.instance
-              .collection('users')
-              .doc(uid)
-              .collection('tasks');
-
-      await collection.doc(task.taskId).delete();
+      await ref.read(taskNotifierProvider.notifier).deleteTask(taskId);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -714,13 +697,13 @@ class _MetaSection extends StatelessWidget {
 
 class _BottomButtons extends ConsumerWidget {
   final TaskEntity task;
-  final String uid;
+  final String taskId;
   final String? groupId;
   final String locale;
 
   const _BottomButtons({
     required this.task,
-    required this.uid,
+    required this.taskId,
     required this.groupId,
     required this.locale,
   });
@@ -752,7 +735,6 @@ class _BottomButtons extends ConsumerWidget {
                 ),
                 builder: (_) => CompleteTaskSheet(
                   task: task,
-                  uid: uid,
                   groupId: groupId,
                   locale: locale,
                   onCompleted: () {
@@ -799,7 +781,8 @@ class _BottomButtons extends ConsumerWidget {
       ),
       builder: (_) => DeferBottomSheet(
         task: task,
-        onDefer: (newDueAt, reason) => _deferTask(context, newDueAt, reason),
+        onDefer: (newDueAt, reason) =>
+            _deferTask(context, newDueAt, reason),
       ),
     );
   }
@@ -810,35 +793,24 @@ class _BottomButtons extends ConsumerWidget {
     String? reason,
   ) async {
     try {
-      final collection = groupId != null
-          ? FirebaseFirestore.instance
-              .collection('groups')
-              .doc(groupId)
-              .collection('tasks')
-          : FirebaseFirestore.instance
-              .collection('users')
-              .doc(uid)
-              .collection('tasks');
-
-      final now = DateTime.now();
       final updateData = <String, dynamic>{
-        'nextDueAt': Timestamp.fromDate(newDueAt),
+        'nextDueAt': newDueAt,
         'deferCount': (task.deferCount) + 1,
-        'deferredAt': Timestamp.fromDate(now),
-        'deferredByUid': uid,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedByUid': uid,
+        'deferredAt': DateTime.now(),
       };
 
       if (task.originalDueAt == null) {
-        updateData['originalDueAt'] = Timestamp.fromDate(task.nextDueAt);
+        updateData['originalDueAt'] = task.nextDueAt;
       }
 
       if (reason != null && reason.isNotEmpty) {
         updateData['notes'] = reason;
       }
 
-      await collection.doc(task.taskId).update(updateData);
+      // Note: updateTask は uid を自動取得します
+      // datasource で currentUser を確認する必要があります
+      final notifier = context.read(taskNotifierProvider.notifier);
+      await notifier.updateTask(taskId, updateData);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
