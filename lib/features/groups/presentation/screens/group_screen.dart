@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/presentation/widgets/error_handler.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/groups_provider.dart';
 import '../../domain/entities/group_entity.dart';
@@ -28,7 +29,9 @@ class GroupScreen extends ConsumerWidget {
       ),
       body: groupsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('エラー: $e')),
+        error: (e, _) => ErrorHandlerWidget(
+        errorInfo: ErrorInfo.fromException(e),
+      ),
         data: (groups) {
           if (groups.isEmpty) {
             return _EmptyGroupView(
