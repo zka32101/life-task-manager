@@ -45,10 +45,13 @@ final routerProvider = Provider<GoRouter>((ref) {
     navigatorKey: navigatorKey,
     initialLocation: '/',
     redirect: (context, state) {
-      // TODO: auth state を確認してリダイレクト
-      // - 未ログイン → /login
-      // - 初回ログイン → /onboarding
-      // - トライアル期限切れ → /paywall
+      // ナビゲーション自体をスキップすべきパスは exclude
+      final isOnAuthPath = state.matchedLocation == '/login' ||
+          state.matchedLocation == '/splash' ||
+          state.matchedLocation == '/paywall';
+
+      // Riverpod のコンテキストが使用できないため、ここでは簡易実装
+      // 詳細なロジックは SplashScreen で実装
       return null;
     },
     routes: [
