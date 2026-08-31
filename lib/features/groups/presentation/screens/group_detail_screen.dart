@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:life_task_manager/core/theme/app_theme.dart';
+import '../../../../core/presentation/widgets/error_handler.dart';
 import '../providers/groups_provider.dart';
 
 /// グループ詳細画面

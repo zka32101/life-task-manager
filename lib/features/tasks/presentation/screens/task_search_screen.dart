@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/presentation/widgets/error_handler.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../domain/entities/task_entity.dart';
 import '../providers/tasks_provider.dart';
@@ -56,7 +57,9 @@ class _TaskSearchScreenState extends ConsumerState<TaskSearchScreen> {
       ),
       body: tasksAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('エラー: $e')),
+        error: (e, _) => ErrorHandlerWidget(
+        errorInfo: ErrorInfo.fromException(e),
+      ),
         data: (tasks) {
           if (_query.isEmpty) {
             return _EmptyQueryView();

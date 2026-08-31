@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/presentation/widgets/error_handler.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../providers/family_provider.dart';
 
@@ -25,7 +26,9 @@ class FamilyMonitorScreen extends ConsumerWidget {
         },
         child: membersAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('エラー: $e')),
+          error: (e, _) => ErrorHandlerWidget(
+        errorInfo: ErrorInfo.fromException(e),
+      ),
           data: (members) {
             if (members.isEmpty) {
               return _EmptyView();

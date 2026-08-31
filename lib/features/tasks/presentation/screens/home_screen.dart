@@ -9,6 +9,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../../../core/utils/trial_service.dart';
+import '../../../../core/presentation/widgets/error_handler.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../providers/tasks_provider.dart';
@@ -628,7 +629,9 @@ class _TaskList extends ConsumerWidget {
 
     return tasksAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('エラー: $e')),
+      error: (e, _) => ErrorHandlerWidget(
+        errorInfo: ErrorInfo.fromException(e),
+      ),
       data: (tasks) {
         final visible = tasks.where((t) => !t.isArchived).toList();
         if (visible.isEmpty) return _EmptyState(filterIndex: filterIndex);

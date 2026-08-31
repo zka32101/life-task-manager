@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:life_task_manager/core/theme/app_theme.dart';
+import '../../../../core/presentation/widgets/error_handler.dart';
 
 /// 通知センター — Firestore notificationLogs をリアルタイム表示
 class NotificationCenterScreen extends StatefulWidget {
