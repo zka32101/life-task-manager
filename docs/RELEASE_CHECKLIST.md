@@ -30,7 +30,7 @@
 | 2-1 | Firebase | 設定ファイル・Firestore規則 | ✅ 完了 | `DEPLOYMENT.md` |
 | 2-2 | RevenueCat | API キー・ストア設定 | ✅ 完了 | `REVENUE_CAT_SETUP.md` |
 | 2-3 | Cloud Functions | Functions デプロイ・設定 | ✅ 完了 | `CLOUD_FUNCTIONS_SETUP.md` |
-| 2-4 | Build Runner | コード生成・Freezed | 📝 計画中 | - |
+| 2-4 | Build Runner | コード生成・Freezed | ✅ 完了 | `BUILD_RUNNER_SETUP.md` |
 | 2-5 | Sentry | エラー トラッキング | 📝 計画中 | - |
 | 2-6 | E2E テスト | テスト スイート実装 | 📝 計画中 | - |
 | 2-7 | 本番ビルド | Android/iOS ビルド署名 | 📝 計画中 | - |
@@ -59,12 +59,18 @@
    - デプロイメント手順
    - テスト・監視・ログ確認
 
-4. **firebase_options.dart** ⭐⭐
+4. **BUILD_RUNNER_SETUP.md** ⭐⭐⭐
+   - Build Runner セットアップ手順
+   - Freezed & json_serializable 説明
+   - コード生成実行方法
+   - トラブルシューティング
+
+5. **firebase_options.dart** ⭐⭐
    - テンプレート ファイル
    - プラットフォーム別設定構造
    - [FlutterFire CLI で自動生成可能]
 
-5. **functions/.env.example** ⭐⭐
+6. **functions/.env.example** ⭐⭐
    - 環境変数テンプレート
    - SendGrid API キー設定
    - Firebase 認証情報
@@ -80,7 +86,8 @@
 ✅ Firebase options テンプレート 用意
 ✅ RevenueCat 統合ガイド 完成
 ✅ Cloud Functions セットアップ 完了
-⬜ Build Runner コード生成 (次)
+✅ Build Runner コード生成 完了
+⬜ Sentry エラートラッキング (次)
 ⬜ E2E テスト実装 (計画中)
 ⬜ ビルド署名設定 (計画中)
 ```
