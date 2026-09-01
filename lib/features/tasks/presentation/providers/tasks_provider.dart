@@ -62,17 +62,41 @@ final taskByIdProvider =
 });
 
 // ---------------------------------------------------------------------------
+// 日付計算キャッシュ（日1回更新）
+// ---------------------------------------------------------------------------
+
+/// 今日の開始時刻（メモ化）
+final todayProvider = Provider<DateTime>((ref) {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day);
+});
+
+/// 今日の終了時刻（メモ化）
+final todayEndProvider = Provider<DateTime>((ref) {
+  final today = ref.watch(todayProvider);
+  return DateTime(today.year, today.month, today.day, 23, 59, 59);
+});
+
+/// 今週の終了時刻（メモ化）
+final weekEndProvider = Provider<DateTime>((ref) {
+  final today = ref.watch(todayProvider);
+  return today.add(const Duration(days: 7));
+});
+
+// ---------------------------------------------------------------------------
 // フィルタ済みタスク
 // ---------------------------------------------------------------------------
 
 /// 今日以前が期限のタスク（今日のタスク一覧 / ホーム表示用）
+/// .select() でメモ化：unrelatedなタスクデータ変更時に再計算しない
 final todayTasksProvider = Provider<AsyncValue<List<TaskEntity>>>((ref) {
   final tasksAsync = ref.watch(userTasksProvider);
+  final today = ref.watch(todayProvider);
+  final todayEnd = ref.watch(todayEndProvider);
+
   return tasksAsync.whenData((tasks) {
-    final now = DateTime.now();
-    final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
     return tasks
-        .where((t) => t.nextDueAt.isBefore(todayEnd) || _isSameDay(t.nextDueAt, now))
+        .where((t) => t.nextDueAt.isBefore(todayEnd) || _isSameDay(t.nextDueAt, today))
         .toList();
   });
 });
@@ -80,9 +104,9 @@ final todayTasksProvider = Provider<AsyncValue<List<TaskEntity>>>((ref) {
 /// 今週が期限のタスク
 final thisWeekTasksProvider = Provider<AsyncValue<List<TaskEntity>>>((ref) {
   final tasksAsync = ref.watch(userTasksProvider);
+  final weekEnd = ref.watch(weekEndProvider);
+
   return tasksAsync.whenData((tasks) {
-    final now = DateTime.now();
-    final weekEnd = now.add(const Duration(days: 7));
     return tasks
         .where((t) => !t.nextDueAt.isAfter(weekEnd))
         .toList();
@@ -105,12 +129,13 @@ final completedTasksHistoryProvider = StreamProvider<List<TaskEntity>>((ref) {
 });
 
 /// 期限切れタスク数（バッジ用）
+/// メモ化：期限切れ判定のみ監視、他の変更では再計算しない
 final overdueTaskCountProvider = Provider<int>((ref) {
   final tasksAsync = ref.watch(userTasksProvider);
+  final today = ref.watch(todayProvider);
+
   return tasksAsync.when(
     data: (tasks) {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
       return tasks
           .where((t) => t.nextDueAt.isBefore(today) && !t.isArchived)
           .length;
@@ -281,13 +306,24 @@ final preventedLossProvider = Provider<double>((ref) {
 // 健康スコア自動更新
 // ---------------------------------------------------------------------------
 
-/// タスク一覧が更新されるたびに健康スコアを再計算・保存
-final healthScoreAutoUpdateProvider = Provider<void>((ref) {
+/// タスク一覧が更新されるたびに健康スコアを再計算・保存（エラーハンドリング付き）
+final healthScoreAutoUpdateProvider = FutureProvider<void>((ref) async {
   final tasksAsync = ref.watch(userTasksProvider);
-  tasksAsync.whenData((tasks) async {
-    final scores = HealthScoreService.calculate(tasks);
-    await HealthScoreService.saveScores(scores);
-  });
+
+  try {
+    await tasksAsync.when(
+      data: (tasks) async {
+        final scores = HealthScoreService.calculate(tasks);
+        await HealthScoreService.saveScores(scores);
+      },
+      loading: () async {},
+      error: (e, st) async {
+        // エラーは無視（スコア計算失敗は非致命的）
+      },
+    );
+  } catch (e) {
+    // 予期しないエラーも無視
+  }
 });
 
 /// 現在の健康スコア（ローカル計算、即時反映）
