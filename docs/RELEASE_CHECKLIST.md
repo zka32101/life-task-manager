@@ -32,7 +32,7 @@
 | 2-3 | Cloud Functions | Functions デプロイ・設定 | ✅ 完了 | `CLOUD_FUNCTIONS_SETUP.md` |
 | 2-4 | Build Runner | コード生成・Freezed | ✅ 完了 | `BUILD_RUNNER_SETUP.md` |
 | 2-5 | Sentry | エラー トラッキング | ✅ 完了 | `SENTRY_SETUP.md` |
-| 2-6 | E2E テスト | テスト スイート実装 | 📝 計画中 | - |
+| 2-6 | E2E テスト | テスト スイート実装 | ✅ 完了 | `E2E_TEST_SETUP.md` |
 | 2-7 | 本番ビルド | Android/iOS ビルド署名 | 📝 計画中 | - |
 | 2-8 | ストア配信 | App Store/Play Store 提出 | 📝 計画中 | - |
 
@@ -72,12 +72,19 @@
    - ユーザーコンテキスト・Breadcrumbs
    - 環境別設定・ダッシュボード監視
 
-6. **firebase_options.dart** ⭐⭐
+6. **E2E_TEST_SETUP.md** ⭐⭐⭐
+   - E2E テスト (integration_test) セットアップ
+   - ログイン・タスク CRUD テスト
+   - グループ・購入・通知テスト
+   - Firebase Emulator での テスト
+   - CI/CD パイプライン (GitHub Actions)
+
+7. **firebase_options.dart** ⭐⭐
    - テンプレート ファイル
    - プラットフォーム別設定構造
    - [FlutterFire CLI で自動生成可能]
 
-7. **functions/.env.example** ⭐⭐
+8. **functions/.env.example** ⭐⭐
    - 環境変数テンプレート
    - SendGrid API キー設定
    - Firebase 認証情報
@@ -95,8 +102,9 @@
 ✅ Cloud Functions セットアップ 完了
 ✅ Build Runner コード生成 完了
 ✅ Sentry エラートラッキング 完了
-⬜ E2E テスト実装 (次)
-⬜ ビルド署名設定 (計画中)
+✅ E2E テスト実装 完了
+⬜ 本番ビルド・署名設定 (次)
+⬜ ストア配信準備 (計画中)
 ```
 
 ### 段階 2: 環境設定準備
