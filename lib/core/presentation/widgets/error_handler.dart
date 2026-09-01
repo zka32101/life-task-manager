@@ -30,6 +30,12 @@ class ErrorInfo {
   final String actionLabel;
   final VoidCallback? onAction;
 
+  /// 元の Firebase エラーコード（デバッグ用）
+  final String? errorCode;
+
+  /// リトライ可能か判定（ネットワークエラーなど）
+  final bool isRetryable;
+
   ErrorInfo({
     required this.type,
     required this.title,
@@ -37,6 +43,8 @@ class ErrorInfo {
     required this.icon,
     this.actionLabel = '戻る',
     this.onAction,
+    this.errorCode,
+    this.isRetryable = false,
   });
 
   /// 例外からエラータイプを判定
@@ -46,7 +54,8 @@ class ErrorInfo {
     VoidCallback? onAction,
   }) {
     if (exception is FirebaseException) {
-      switch (exception.code) {
+      final code = exception.code;
+      switch (code) {
         case 'permission-denied':
           return ErrorInfo(
             type: ErrorType.permissionDenied,
@@ -55,6 +64,8 @@ class ErrorInfo {
             icon: Icons.lock_outline,
             actionLabel: '戻る',
             onAction: onAction,
+            errorCode: code,
+            isRetryable: false,
           );
 
         case 'not-found':
@@ -65,6 +76,8 @@ class ErrorInfo {
             icon: Icons.search_off_rounded,
             actionLabel: '戻る',
             onAction: onAction,
+            errorCode: code,
+            isRetryable: false,
           );
 
         case 'unavailable':
@@ -76,6 +89,21 @@ class ErrorInfo {
             icon: Icons.wifi_off_rounded,
             actionLabel: 'リトライ',
             onAction: onAction,
+            errorCode: code,
+            isRetryable: true,
+          );
+
+        case 'resource-exhausted':
+        case 'internal':
+          return ErrorInfo(
+            type: ErrorType.networkError,
+            title: 'サーバーエラー',
+            message: '一時的なエラーが発生しました。後でお試しください。',
+            icon: Icons.cloud_off_rounded,
+            actionLabel: 'リトライ',
+            onAction: onAction,
+            errorCode: code,
+            isRetryable: true,
           );
 
         default:
@@ -86,12 +114,15 @@ class ErrorInfo {
             icon: Icons.error_outline,
             actionLabel: '戻る',
             onAction: onAction,
+            errorCode: code,
+            isRetryable: false,
           );
       }
     }
 
     if (exception is FirebaseAuthException) {
-      switch (exception.code) {
+      final code = exception.code;
+      switch (code) {
         case 'user-not-found':
           return ErrorInfo(
             type: ErrorType.authenticationError,
@@ -100,9 +131,12 @@ class ErrorInfo {
             icon: Icons.person_off_rounded,
             actionLabel: '戻る',
             onAction: onAction,
+            errorCode: code,
+            isRetryable: false,
           );
 
         case 'invalid-credential':
+        case 'wrong-password':
           return ErrorInfo(
             type: ErrorType.authenticationError,
             title: '認証に失敗しました',
@@ -110,6 +144,32 @@ class ErrorInfo {
             icon: Icons.lock_outline,
             actionLabel: '戻る',
             onAction: onAction,
+            errorCode: code,
+            isRetryable: false,
+          );
+
+        case 'network-request-failed':
+          return ErrorInfo(
+            type: ErrorType.networkError,
+            title: 'ネットワークエラー',
+            message: 'インターネット接続を確認してください。',
+            icon: Icons.wifi_off_rounded,
+            actionLabel: 'リトライ',
+            onAction: onAction,
+            errorCode: code,
+            isRetryable: true,
+          );
+
+        case 'too-many-requests':
+          return ErrorInfo(
+            type: ErrorType.networkError,
+            title: 'リクエストが多すぎます',
+            message: 'しばらく待ってからお試しください。',
+            icon: Icons.hourglass_empty_rounded,
+            actionLabel: 'リトライ',
+            onAction: onAction,
+            errorCode: code,
+            isRetryable: true,
           );
 
         default:
@@ -120,6 +180,8 @@ class ErrorInfo {
             icon: Icons.lock_outline,
             actionLabel: '戻る',
             onAction: onAction,
+            errorCode: code,
+            isRetryable: false,
           );
       }
     }
@@ -132,6 +194,7 @@ class ErrorInfo {
       icon: Icons.error_outline,
       actionLabel: '戻る',
       onAction: onAction,
+      isRetryable: false,
     );
   }
 }
@@ -277,6 +340,8 @@ extension ErrorInfoExtension on ErrorInfo {
     IconData? icon,
     String? actionLabel,
     VoidCallback? onAction,
+    String? errorCode,
+    bool? isRetryable,
   }) {
     return ErrorInfo(
       type: type ?? this.type,
@@ -285,6 +350,8 @@ extension ErrorInfoExtension on ErrorInfo {
       icon: icon ?? this.icon,
       actionLabel: actionLabel ?? this.actionLabel,
       onAction: onAction ?? this.onAction,
+      errorCode: errorCode ?? this.errorCode,
+      isRetryable: isRetryable ?? this.isRetryable,
     );
   }
 }
