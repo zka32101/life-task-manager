@@ -33,7 +33,7 @@
 | 2-4 | Build Runner | コード生成・Freezed | ✅ 完了 | `BUILD_RUNNER_SETUP.md` |
 | 2-5 | Sentry | エラー トラッキング | ✅ 完了 | `SENTRY_SETUP.md` |
 | 2-6 | E2E テスト | テスト スイート実装 | ✅ 完了 | `E2E_TEST_SETUP.md` |
-| 2-7 | 本番ビルド | Android/iOS ビルド署名 | 📝 計画中 | - |
+| 2-7 | 本番ビルド | Android/iOS ビルド署名 | ✅ 完了 | `PRODUCTION_BUILD_SETUP.md` |
 | 2-8 | ストア配信 | App Store/Play Store 提出 | 📝 計画中 | - |
 
 ---
@@ -79,12 +79,19 @@
    - Firebase Emulator での テスト
    - CI/CD パイプライン (GitHub Actions)
 
-7. **firebase_options.dart** ⭐⭐
+7. **PRODUCTION_BUILD_SETUP.md** ⭐⭐⭐
+   - iOS 本番ビルド（証明書・プロビジョニング）
+   - Android 本番ビルド（キーストア・署名）
+   - ビルド最適化・サイズ削減
+   - デバイステスト・検証
+   - リリース前チェックリスト
+
+8. **firebase_options.dart** ⭐⭐
    - テンプレート ファイル
    - プラットフォーム別設定構造
    - [FlutterFire CLI で自動生成可能]
 
-8. **functions/.env.example** ⭐⭐
+9. **functions/.env.example** ⭐⭐
    - 環境変数テンプレート
    - SendGrid API キー設定
    - Firebase 認証情報
@@ -103,8 +110,8 @@
 ✅ Build Runner コード生成 完了
 ✅ Sentry エラートラッキング 完了
 ✅ E2E テスト実装 完了
-⬜ 本番ビルド・署名設定 (次)
-⬜ ストア配信準備 (計画中)
+✅ 本番ビルド・署名設定 完了
+⬜ ストア配信準備 (次)
 ```
 
 ### 段階 2: 環境設定準備
