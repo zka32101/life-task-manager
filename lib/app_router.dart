@@ -27,6 +27,36 @@ import 'features/help/presentation/screens/app_guide_screen.dart';
 /// 通知タップ時のナビゲーションに使うキー
 final navigatorKey = GlobalKey<NavigatorState>();
 
+// ---------------------------------------------------------------------------
+// ルートパラメータ検証ヘルパー
+// ---------------------------------------------------------------------------
+
+/// パラメータの安全な抽出と検証
+class _RouteParams {
+  /// pathParameter から ID を安全に抽出（空文字列チェック付き）
+  static String? extractId(Map<String, String> params, String key) {
+    final value = params[key];
+    return (value != null && value.isNotEmpty) ? value : null;
+  }
+
+  /// queryParameter から文字列を安全に抽出
+  static String? extractString(Map<String, String> queryParams, String key) {
+    final value = queryParams[key];
+    return (value != null && value.isNotEmpty) ? value : null;
+  }
+
+  /// queryParameter からboolを安全に抽出
+  static bool extractBool(Map<String, String> queryParams, String key) {
+    return queryParams[key]?.toLowerCase() == 'true';
+  }
+
+  /// queryParameter から整数を安全に抽出
+  static int extractInt(Map<String, String> queryParams, String key,
+      {int defaultValue = 0}) {
+    return int.tryParse(queryParams[key] ?? '') ?? defaultValue;
+  }
+}
+
 /// アプリルーター（GoRouter）
 ///
 /// ルート一覧:
@@ -89,7 +119,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/tasks/new',
         name: 'task-new',
         builder: (context, state) {
-          final groupId = state.uri.queryParameters['groupId'];
+          final groupId = _RouteParams.extractString(
+            state.uri.queryParameters,
+            'groupId',
+          );
           return TaskAddEditScreen(groupId: groupId);
         },
       ),
@@ -97,8 +130,32 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/tasks/:id',
         name: 'task-detail',
         builder: (context, state) {
-          final taskId = state.pathParameters['id']!;
-          final groupId = state.uri.queryParameters['groupId'];
+          final taskId = _RouteParams.extractId(state.pathParameters, 'id');
+          final groupId = _RouteParams.extractString(
+            state.uri.queryParameters,
+            'groupId',
+          );
+
+          if (taskId == null) {
+            return Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const SizedBox(height: 16),
+                    const Text('無効なタスクID'),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () => context.go('/home'),
+                      child: const Text('ホームに戻る'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           return TaskDetailScreen(taskId: taskId, groupId: groupId);
         },
       ),
@@ -106,7 +163,28 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/tasks/:id/edit',
         name: 'task-edit',
         builder: (context, state) {
-          final taskId = state.pathParameters['id']!;
+          final taskId = _RouteParams.extractId(state.pathParameters, 'id');
+
+          if (taskId == null) {
+            return Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const SizedBox(height: 16),
+                    const Text('無効なタスクID'),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () => context.go('/home'),
+                      child: const Text('ホームに戻る'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           return TaskAddEditScreen(taskId: taskId);
         },
       ),
@@ -119,7 +197,32 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: ':groupId',
             name: 'group-detail',
             builder: (context, state) {
-              final groupId = state.pathParameters['groupId']!;
+              final groupId = _RouteParams.extractId(
+                state.pathParameters,
+                'groupId',
+              );
+
+              if (groupId == null) {
+                return Scaffold(
+                  body: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline,
+                            size: 48, color: Colors.red),
+                        const SizedBox(height: 16),
+                        const Text('無効なグループID'),
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: () => context.go('/groups'),
+                          child: const Text('グループに戻る'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
               return GroupDetailScreen(groupId: groupId);
             },
           ),
@@ -129,7 +232,28 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/invitation/:code',
         name: 'invitation-accept',
         builder: (context, state) {
-          final code = state.pathParameters['code']!;
+          final code = _RouteParams.extractId(state.pathParameters, 'code');
+
+          if (code == null || code.isEmpty) {
+            return Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const SizedBox(height: 16),
+                    const Text('無効な招待コード'),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () => context.go('/home'),
+                      child: const Text('ホームに戻る'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           return InvitationAcceptScreen(invitationCode: code);
         },
       ),
@@ -169,8 +293,36 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/tasks',
         name: 'family-tasks',
         builder: (context, state) {
-          final uid = state.uri.queryParameters['uid'] ?? '';
-          final name = state.uri.queryParameters['name'] ?? '家族';
+          final uid = _RouteParams.extractString(
+            state.uri.queryParameters,
+            'uid',
+          );
+          final name = _RouteParams.extractString(
+                state.uri.queryParameters,
+                'name',
+              ) ??
+              '家族';
+
+          if (uid == null || uid.isEmpty) {
+            return Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const SizedBox(height: 16),
+                    const Text('ユーザーID が指定されていません'),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () => context.go('/family'),
+                      child: const Text('家族管理に戻る'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           return FamilyTasksScreen(targetUid: uid, name: name);
         },
       ),
@@ -178,7 +330,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/guide',
         name: 'guide',
         builder: (context, state) {
-          final isFirst = state.uri.queryParameters['first'] == 'true';
+          final isFirst = _RouteParams.extractBool(
+            state.uri.queryParameters,
+            'first',
+          );
           return AppGuideScreen(isFirstLaunch: isFirst);
         },
       ),
@@ -186,9 +341,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/paywall',
         name: 'paywall',
         builder: (context, state) {
-          final isForced = state.uri.queryParameters['forced'] == 'true';
-          final remaining =
-              int.tryParse(state.uri.queryParameters['remaining'] ?? '0') ?? 0;
+          final isForced = _RouteParams.extractBool(
+            state.uri.queryParameters,
+            'forced',
+          );
+          final remaining = _RouteParams.extractInt(
+            state.uri.queryParameters,
+            'remaining',
+          );
+
           return PaywallScreen(
             isForced: isForced,
             remainingDays: remaining,
@@ -202,19 +363,65 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
-      body: Center(child: Text('Page not found: ${state.error}')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                size: 64,
+                color: Colors.amber,
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'ページが見つかりません',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'リクエストされたページ: ${state.matchedLocation}',
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton(
+                onPressed: () => context.go('/home'),
+                child: const Text('ホームに戻る'),
+              ),
+            ],
+          ),
+        ),
+      ),
     ),
   );
 
-  // 通知タップ → GoRouter でナビゲーション
+  // 通知タップ → GoRouter でナビゲーション（パラメータ検証付き）
   NotificationService.onNotificationTap = (screen, taskId, groupId) {
-    if (taskId != null && taskId.isNotEmpty) {
-      router.goNamed('task-detail',
-          pathParameters: {'id': taskId},
-          queryParameters: groupId != null ? {'groupId': groupId} : {});
-    } else if (screen == 'notifications') {
-      router.goNamed('notifications');
-    } else {
+    try {
+      // タスクIDが有効な場合
+      if (taskId != null && taskId.isNotEmpty) {
+        final params = {'id': taskId};
+        final queryParams = <String, String>{};
+
+        if (groupId != null && groupId.isNotEmpty) {
+          queryParams['groupId'] = groupId;
+        }
+
+        router.goNamed(
+          'task-detail',
+          pathParameters: params,
+          queryParameters: queryParams,
+        );
+      } else if (screen == 'notifications') {
+        router.goNamed('notifications');
+      } else {
+        router.goNamed('home');
+      }
+    } catch (e) {
+      // ナビゲーション失敗時はホームに遷移
       router.goNamed('home');
     }
   };
